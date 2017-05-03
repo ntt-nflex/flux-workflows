@@ -161,15 +161,13 @@ def show_error(message):
 
 
 @cli.command("validate")
-@click.option("-f", "--file", type=str, default="workflow.json",
+@click.option("-f", "--file", type=click.File("r"), default="workflow.json",
               help="File to load the workflow from")
 @pass_context
 def cmd_validate(ctx, file):
     """Validate the current workflow"""
 
-    data = None
-    with open(file, "r") as wf:
-        data = json.load(wf)
+    data = json.load(file)
 
     resp = ctx.cmp.post("/workflows?validate_only=true", data)
 
@@ -180,15 +178,13 @@ def cmd_validate(ctx, file):
 
 
 @cli.command("upload")
-@click.option("-f", "--file", type=str, default="workflow.json",
+@click.option("-f", "--file", type=click.File("r"), default="workflow.json",
               help="File to load the workflow from")
 @pass_context
 def cmd_upload(ctx, file):
     """Upload the current workflow"""
 
-    data = None
-    with open(file, "r") as wf:
-        data = json.load(wf)
+    data = json.load(file)
 
     resp = ctx.cmp.post("/workflows", data)
 
@@ -204,15 +200,13 @@ def cmd_upload(ctx, file):
 
 @cli.command("update")
 @click.argument("workflow_id", autocompletion=list_workflows)
-@click.option("-f", "--file", type=str, default="workflow.json",
+@click.option("-f", "--file", type=click.File("r"), default="workflow.json",
               help="File to load the workflow from")
 @pass_context
 def cmd_update(ctx, workflow_id, file):
     """Update (patch) a workflow"""
 
-    data = None
-    with open(file, "r") as wf:
-        data = json.load(wf)
+    data = json.load(file)
 
     resp = ctx.cmp.patch("/workflows/" + workflow_id, data)
 
@@ -405,10 +399,29 @@ def cmd_delete_instance(ctx, workflow_id, instance_id, yes):
         resp.raise_for_status()
 
 
+@cli.command("get")
+@click.argument("workflow-id", autocompletion=list_workflows)
+@click.option("-i", "--indent", type=int, default=4,
+              help="Number of spaces to indent created file by")
+@click.option("-f", "--file", type=click.File("w"), default="workflow.json",
+              help="File to save the workflow to")
+@pass_context
+def cmd_get(ctx, workflow_id, indent, file):
+    """Download a workflow to edit or view locally"""
+
+    resp = ctx.cmp.get("/workflows/{}".format(workflow_id))
+    resp.raise_for_status()
+
+    workflow = resp.json()
+
+    json.dump(workflow, file, indent=indent)
+    file.write("\n")  # json.dump doesn't write a trailing newline
+
+
 @cli.command("create")
 @click.option("-i", "--indent", type=int, default=4,
               help="Number of spaces to indent created file by")
-@click.option("-f", "--file", type=str, default="workflow.json",
+@click.option("-f", "--file", type=click.File("w"), default="workflow.json",
               help="File to save the workflow to")
 def cmd_create(indent, file):
     """Create a workflow skeleton"""
@@ -427,6 +440,5 @@ def cmd_create(indent, file):
         "timeout": 600,
     }
 
-    with open(file, "w") as wf:
-        json.dump(workflow, wf, indent=indent)
-        wf.write("\n")  # json.dump doesn't write a trailing newline
+    json.dump(workflow, file, indent=indent)
+    file.write("\n")  # json.dump doesn't write a trailing newline
