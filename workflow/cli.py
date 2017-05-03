@@ -362,8 +362,7 @@ def cmd_run(ctx, workflow_id, event):
         {"event": json.loads(event)})
     resp.raise_for_status()
 
-    instance = resp.json()
-
+    instance = resp.json()["instance"]
     click.echo("Instance started as ID: {}".format(instance["id"]))
 
 
@@ -412,7 +411,7 @@ def cmd_delete_instance(ctx, workflow_id, instance_id, yes):
 @click.option("-f", "--file", type=str, default="workflow.json",
               help="File to save the workflow to")
 def cmd_create(indent, file):
-    """Create a workflow skeleton with basic fields completed"""
+    """Create a workflow skeleton"""
 
     workflow = {
         "name": "Untitled Workflow",
