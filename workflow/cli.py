@@ -2,6 +2,9 @@
 import click
 import json
 import sys
+import uuid
+import time
+from datetime import datetime, timedelta
 
 from workflow import config
 from workflow.clients import cmp
@@ -18,6 +21,23 @@ class Context:
 
 
 pass_context = click.make_pass_decorator(Context, ensure=True)
+
+
+class UUIDParamType(click.ParamType):
+
+    def __init__(self, name):
+        self.name = name
+
+    def convert(self, value, param, ctx):
+        try:
+            uuid.UUID(hex=value)
+            return value
+        except ValueError as e:
+            self.fail("%s" % e)
+
+
+instanceIDParam = UUIDParamType("instance_id")
+workflowIDParam = UUIDParamType("workflow_id")
 
 
 # CLI helpers
@@ -78,7 +98,8 @@ def cmd_list(ctx):
 
 
 @cli.command("show")
-@click.argument("workflow_id", autocompletion=list_workflows)
+@click.argument("workflow_id",
+                type=workflowIDParam, autocompletion=list_workflows)
 @pass_context
 def cmd_show(ctx, workflow_id):
     """Display details of a Flux workflow"""
@@ -199,7 +220,8 @@ def cmd_upload(ctx, file):
 
 
 @cli.command("update")
-@click.argument("workflow_id", autocompletion=list_workflows)
+@click.argument("workflow_id",
+                type=workflowIDParam, autocompletion=list_workflows)
 @click.option("-f", "--file", type=click.File("r"), default="workflow.json",
               help="File to load the workflow from")
 @pass_context
@@ -219,7 +241,8 @@ def cmd_update(ctx, workflow_id, file):
 
 
 @cli.command("delete")
-@click.argument("workflow_id", autocompletion=list_workflows)
+@click.argument("workflow_id",
+                type=workflowIDParam, autocompletion=list_workflows)
 @click.option("-y", "--yes", is_flag=True,
               help="Skip delete confirmation prompt")
 @pass_context
@@ -242,34 +265,91 @@ def cmd_delete(ctx, workflow_id, yes):
 
 
 @cli.command("logs")
-@click.argument("workflow_id", autocompletion=list_workflows)
+@click.argument("workflow_id",
+                type=workflowIDParam, autocompletion=list_workflows)
 @click.option("-i", "--instance",
               help=(
                   "Get logs for a specific instance, "
                   "instead of all instances"
               ),
+              type=instanceIDParam,
               autocompletion=list_instances)
+@click.option("-f", "--follow", is_flag=True,
+              help="Wait for logs and print them as they arrive")
+@click.option("-o", "--out", type=click.File("w"), default="-",
+              help="Write logs to FILENAME instead of stdout")
 @pass_context
-def cmd_logs(ctx, workflow_id, instance):
+def cmd_logs(ctx, workflow_id, instance, follow, out):
     """Get logs for a workflow"""
 
-    resource_id = "workflow-" + workflow_id
+    url = "/logs?resource_id=workflow-{}".format(workflow_id)
     if instance:
-        resource_id = "workflowinstance-" + instance
+        url = "/workflows/{}/instances/{}".format(workflow_id, instance)
 
-    resp = ctx.cmp.get("/logs?resource_id={}".format(resource_id))
+    resp = ctx.cmp.get(url)
     resp.raise_for_status()
 
-    logs = resp.json()
+    if instance:
+        logs = resp.json()["logs"]
+        click.echo(logs, nl=False, file=out)
 
-    row = "{timestamp:20}  {severity:6}  {message}"
+        if follow:
+            while True:
+                resp = ctx.cmp.get(url)
+                if resp.status_code == 404:
+                    out.close()
+                    return
+                resp.raise_for_status()
 
-    for log in logs["hits"]:
-        click.echo(row.format(**log))
+                newlogs = resp.json()["logs"]
+                click.echo(newlogs[len(logs):], nl=False, file=out)
+                logs = newlogs
+
+                time.sleep(1)
+
+    else:
+        logs = resp.json()
+
+        row = "[{severity:5}] {message}"
+
+        last_timestamp = None
+
+        # Logs are returned most-recent-first, so we need to reverse the list
+        for log in reversed(logs["hits"]):
+            dt = datetime.strptime(log["timestamp"], "%Y-%m-%dT%H:%M:%S.%fZ")
+            dt = dt.replace(microsecond=0)
+            last_timestamp = dt
+            click.echo(dt.isoformat() + "Z " + row.format(**log),
+                       file=out)
+
+        if follow:
+            while True:
+
+                resp = ctx.cmp.get("{}&start={}".format(
+                    url,
+                    (last_timestamp + timedelta(seconds=1)).strftime(
+                        "%Y-%m-%dT%H:%M:%S.%fZ")))
+                resp.raise_for_status()
+
+                logs = resp.json()
+                # Logs are returned most-recent-first,
+                # so we need to reverse the list
+                for log in reversed(logs["hits"]):
+                    dt = datetime.strptime(log["timestamp"],
+                                           "%Y-%m-%dT%H:%M:%S.%fZ")
+                    last_timestamp = dt
+                    dt = dt.replace(microsecond=0)
+                    click.echo(dt.isoformat() + "Z " + row.format(**log),
+                               file=out)
+
+                time.sleep(1)
+
+    out.close()
 
 
 @cli.command("list-instances")
-@click.argument("workflow_id", autocompletion=list_workflows)
+@click.argument("workflow_id",
+                type=workflowIDParam, autocompletion=list_workflows)
 @pass_context
 def cmd_list_instances(ctx, workflow_id):
     """List instances of a workflow"""
@@ -293,8 +373,10 @@ def cmd_list_instances(ctx, workflow_id):
 
 
 @cli.command("show-instance")
-@click.argument("workflow_id", autocompletion=list_workflows)
-@click.argument("instance_id", autocompletion=list_instances)
+@click.argument("workflow_id",
+                type=workflowIDParam, autocompletion=list_workflows)
+@click.argument("instance_id",
+                type=instanceIDParam, autocompletion=list_instances)
 @pass_context
 def cmd_show_instances(ctx, workflow_id, instance_id):
     """Display details of an instance"""
@@ -343,7 +425,8 @@ def show_instance(ctx, workflow_id, instance_id):
 
 
 @cli.command("run")
-@click.argument("workflow_id", autocompletion=list_workflows)
+@click.argument("workflow_id",
+                type=workflowIDParam, autocompletion=list_workflows)
 @click.option("-e", "--event",
               help="The event to pass to the workflow, in JSON format",
               default="{}")
@@ -361,8 +444,10 @@ def cmd_run(ctx, workflow_id, event):
 
 
 @cli.command("update-instance")
-@click.argument("workflow_id", autocompletion=list_workflows)
-@click.argument("instance_id", autocompletion=list_instances)
+@click.argument("workflow_id",
+                type=workflowIDParam, autocompletion=list_workflows)
+@click.argument("instance_id",
+                type=instanceIDParam, autocompletion=list_instances)
 @click.argument("event", type=click.STRING)
 @pass_context
 def cmd_update_instance(ctx, workflow_id, instance_id, event):
@@ -375,8 +460,10 @@ def cmd_update_instance(ctx, workflow_id, instance_id, event):
 
 
 @cli.command("delete-instance")
-@click.argument("workflow-id", autocompletion=list_workflows)
-@click.argument("instance_id", autocompletion=list_instances)
+@click.argument("workflow_id",
+                type=workflowIDParam, autocompletion=list_workflows)
+@click.argument("instance_id",
+                type=instanceIDParam, autocompletion=list_instances)
 @click.option("-y", "--yes", is_flag=True,
               help="Skip delete confirmation prompt")
 @pass_context
@@ -400,7 +487,8 @@ def cmd_delete_instance(ctx, workflow_id, instance_id, yes):
 
 
 @cli.command("get")
-@click.argument("workflow-id", autocompletion=list_workflows)
+@click.argument("workflow-id",
+                type=workflowIDParam, autocompletion=list_workflows)
 @click.option("-i", "--indent", type=int, default=4,
               help="Number of spaces to indent created file by")
 @click.option("-f", "--file", type=click.File("w"), default="workflow.json",
