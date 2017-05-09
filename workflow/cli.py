@@ -282,66 +282,84 @@ def cmd_delete(ctx, workflow_id, yes):
 def cmd_logs(ctx, workflow_id, instance, follow, out):
     """Get logs for a workflow"""
 
-    url = "/logs?resource_id=workflow-{}".format(workflow_id)
-    if instance:
-        url = "/workflows/{}/instances/{}".format(workflow_id, instance)
-
-    resp = ctx.cmp.get(url)
-    resp.raise_for_status()
+    dateFormat = "%Y-%m-%dT%H:%M:%SZ"
 
     if instance:
-        logs = resp.json()["logs"]
-        click.echo(logs, nl=False, file=out)
+        lastLog = None
+        cont = True
+        while cont:
+            resp = ctx.cmp.get(
+                "/workflows/{}/instances/{}".format(
+                    workflow_id,
+                    instance))
 
-        if follow:
-            while True:
-                resp = ctx.cmp.get(url)
-                if resp.status_code == 404:
-                    out.close()
-                    return
-                resp.raise_for_status()
+            if lastLog is not None and resp.status_code == 404:
+                return
 
-                newlogs = resp.json()["logs"]
-                click.echo(newlogs[len(logs):], nl=False, file=out)
-                logs = newlogs
+            resp.raise_for_status()
+            logs = resp.json()["logs"]
 
+            if lastLog is not None:
+                if lastLog in logs:
+                    logs = logs[logs.index(lastLog)+1:]
+
+            for log in logs:
+                dt = datetime.strptime(log["time"], dateFormat)
+
+                lastLog = log
+
+                extra = " ".join(sorted(["{}={}".format(x, log[x])
+                                         for x in log
+                                         if x not in ["time",
+                                                      "level",
+                                                      "message",
+                                                      "event"]]))
+
+                click.echo("{} [{:5}] {:40} {} event={}".format(
+                    log["time"],
+                    log["level"],
+                    log["message"],
+                    extra,
+                    json.dumps(log["event"]),
+                ), file=out)
+
+            cont = follow
+            if cont:
                 time.sleep(1)
 
     else:
-        logs = resp.json()
+        lastTime = None
+        cont = True
+        while cont:
+            if lastTime is None:
+                resp = ctx.cmp.get("/logs?resource_id=workflow-{}".format(
+                    workflow_id
+                ))
+            else:
+                resp = ctx.cmp.get(
+                    "/logs?resource_id=workflow-{}&start={}".format(
+                        workflow_id,
+                        (lastTime + timedelta(seconds=1)).strftime(
+                            "%Y-%m-%dT%H:%M:%SZ")))
 
-        row = "[{severity:5}] {message}"
+            resp.raise_for_status()
+            logs = resp.json()
 
-        last_timestamp = None
+            # Logs are returned most-recent-first,
+            # so we need to reverse the list
+            for log in reversed(logs["hits"]):
+                dt = datetime.strptime(log["timestamp"],
+                                       "%Y-%m-%dT%H:%M:%S.%fZ")
+                lastTime = dt
+                dt = dt.replace(microsecond=0)
+                click.echo("{}Z [{:5}] {}".format(
+                    dt.isoformat(),
+                    log["severity"],
+                    log["message"],
+                ), file=out)
 
-        # Logs are returned most-recent-first, so we need to reverse the list
-        for log in reversed(logs["hits"]):
-            dt = datetime.strptime(log["timestamp"], "%Y-%m-%dT%H:%M:%S.%fZ")
-            dt = dt.replace(microsecond=0)
-            last_timestamp = dt
-            click.echo(dt.isoformat() + "Z " + row.format(**log),
-                       file=out)
-
-        if follow:
-            while True:
-
-                resp = ctx.cmp.get("{}&start={}".format(
-                    url,
-                    (last_timestamp + timedelta(seconds=1)).strftime(
-                        "%Y-%m-%dT%H:%M:%S.%fZ")))
-                resp.raise_for_status()
-
-                logs = resp.json()
-                # Logs are returned most-recent-first,
-                # so we need to reverse the list
-                for log in reversed(logs["hits"]):
-                    dt = datetime.strptime(log["timestamp"],
-                                           "%Y-%m-%dT%H:%M:%S.%fZ")
-                    last_timestamp = dt
-                    dt = dt.replace(microsecond=0)
-                    click.echo(dt.isoformat() + "Z " + row.format(**log),
-                               file=out)
-
+            cont = follow
+            if cont:
                 time.sleep(1)
 
     out.close()
