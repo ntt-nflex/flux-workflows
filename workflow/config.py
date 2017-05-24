@@ -16,7 +16,8 @@ class Config:
         write = False
         self.url, write = option(
             write, data, "url",
-            lambda: raw_input("CMP URL [%s]: " % DEFAULT_CMP_URL)
+            lambda: raw_input("CMP URL [%s]: " %
+                              DEFAULT_CMP_URL) or DEFAULT_CMP_URL
         )
         self.api_key, write = option(
             write, data, "api_key",
@@ -81,7 +82,8 @@ def load():
 
 def write_json_file(file_name, data):
     with open(file_name, "w") as f:
-        return json.dump(data, f, indent=4)
+        json.dump(data, f, indent=4)
+        f.write("\n")
 
 
 def read_json_file(file_name):
