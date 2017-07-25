@@ -13,13 +13,13 @@ with open('README.md') as f:
 # del os.link
 
 setup(
-    name="workflow",
-    version="0.0.1",
-    description=description,
+    name="flux-workflows",
+    version="0.0.2",
+    description="Command line tool for interacting with Flux Workflows",
     long_description=long_description,
     url='http://www.ntt.com',
     author='NTT communications',
-    author_email='minder@nexus.ntteo.net',
+    author_email='michael.tonks@headforwards.com',
     licence='GNU General Public License v2 (GPLv2)',
     packages=find_packages(exclude=['tests']),
     include_package_data=True,
