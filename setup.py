@@ -14,7 +14,7 @@ with open('README.md') as f:
 
 setup(
     name="flux-workflows",
-    version="0.0.2",
+    version="0.0.3",
     description="Command line tool for interacting with Flux Workflows",
     long_description=long_description,
     url='http://www.ntt.com',
