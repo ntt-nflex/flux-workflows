@@ -99,7 +99,7 @@ def cmd_list(ctx):
 
 @cli.command("show")
 @click.argument("workflow_id",
-                type=workflowIDParam, autocompletion=list_workflows)
+                type=workflowIDParam)
 @pass_context
 def cmd_show(ctx, workflow_id):
     """Display details of a Flux workflow"""
@@ -221,7 +221,7 @@ def cmd_upload(ctx, file):
 
 @cli.command("update")
 @click.argument("workflow_id",
-                type=workflowIDParam, autocompletion=list_workflows)
+                type=workflowIDParam)
 @click.option("-f", "--file", type=click.File("r"), default="workflow.json",
               help="File to load the workflow from")
 @pass_context
@@ -242,7 +242,7 @@ def cmd_update(ctx, workflow_id, file):
 
 @cli.command("delete")
 @click.argument("workflow_id",
-                type=workflowIDParam, autocompletion=list_workflows)
+                type=workflowIDParam)
 @click.option("-y", "--yes", is_flag=True,
               help="Skip delete confirmation prompt")
 @pass_context
@@ -266,14 +266,13 @@ def cmd_delete(ctx, workflow_id, yes):
 
 @cli.command("logs")
 @click.argument("workflow_id",
-                type=workflowIDParam, autocompletion=list_workflows)
+                type=workflowIDParam)
 @click.option("-i", "--instance",
               help=(
                   "Get logs for a specific instance, "
                   "instead of all instances"
               ),
-              type=instanceIDParam,
-              autocompletion=list_instances)
+              type=instanceIDParam)
 @click.option("-f", "--follow", is_flag=True,
               help="Wait for logs and print them as they arrive")
 @click.option("-o", "--out", type=click.File("w"), default="-",
@@ -367,7 +366,7 @@ def cmd_logs(ctx, workflow_id, instance, follow, out):
 
 @cli.command("list-instances")
 @click.argument("workflow_id",
-                type=workflowIDParam, autocompletion=list_workflows)
+                type=workflowIDParam)
 @pass_context
 def cmd_list_instances(ctx, workflow_id):
     """List instances of a workflow"""
@@ -392,9 +391,9 @@ def cmd_list_instances(ctx, workflow_id):
 
 @cli.command("show-instance")
 @click.argument("workflow_id",
-                type=workflowIDParam, autocompletion=list_workflows)
+                type=workflowIDParam)
 @click.argument("instance_id",
-                type=instanceIDParam, autocompletion=list_instances)
+                type=instanceIDParam)
 @pass_context
 def cmd_show_instances(ctx, workflow_id, instance_id):
     """Display details of an instance"""
@@ -444,7 +443,7 @@ def show_instance(ctx, workflow_id, instance_id):
 
 @cli.command("run")
 @click.argument("workflow_id",
-                type=workflowIDParam, autocompletion=list_workflows)
+                type=workflowIDParam)
 @click.option("-e", "--event",
               help="The event to pass to the workflow, in JSON format",
               default="{}")
@@ -463,9 +462,9 @@ def cmd_run(ctx, workflow_id, event):
 
 @cli.command("update-instance")
 @click.argument("workflow_id",
-                type=workflowIDParam, autocompletion=list_workflows)
+                type=workflowIDParam)
 @click.argument("instance_id",
-                type=instanceIDParam, autocompletion=list_instances)
+                type=instanceIDParam)
 @click.argument("event", type=click.STRING)
 @pass_context
 def cmd_update_instance(ctx, workflow_id, instance_id, event):
@@ -479,9 +478,9 @@ def cmd_update_instance(ctx, workflow_id, instance_id, event):
 
 @cli.command("delete-instance")
 @click.argument("workflow_id",
-                type=workflowIDParam, autocompletion=list_workflows)
+                type=workflowIDParam)
 @click.argument("instance_id",
-                type=instanceIDParam, autocompletion=list_instances)
+                type=instanceIDParam)
 @click.option("-y", "--yes", is_flag=True,
               help="Skip delete confirmation prompt")
 @pass_context
@@ -506,7 +505,7 @@ def cmd_delete_instance(ctx, workflow_id, instance_id, yes):
 
 @cli.command("get")
 @click.argument("workflow-id",
-                type=workflowIDParam, autocompletion=list_workflows)
+                type=workflowIDParam)
 @click.option("-i", "--indent", type=int, default=4,
               help="Number of spaces to indent created file by")
 @click.option("-f", "--file", type=click.File("w"), default="workflow.json",
